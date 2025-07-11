@@ -55,11 +55,13 @@ class SearchResult:
     document: Document
     score: float
     highlights: Optional[Dict[str, list]] = None
+    explanation: Optional[Dict[str, Any]] = None
     
     def to_dict(self) -> Dict[str, Any]:
         """검색 결과를 딕셔너리로 변환"""
         return {
             'document': self.document.to_dict(),
             'score': self.score,
-            'highlights': self.highlights
+            'highlights': self.highlights,
+            'explanation': self.explanation
         } 

@@ -150,15 +150,58 @@ class ElasticsearchConfig:
         #     }
         # }
 
+        # return {
+        #     "settings": {
+        #         "analysis": {
+        #             # "analyzer": {
+        #             #     "nori",
+        #             # }
+                        
+        #             "analyzer": {
+        #                 "youtube_analyzer": {
+        #                     "tokenizer": "standard",
+        #                     "filter": ["lowercase", "stop"]
+        #                 }
+        #             }
+        #         },
+        #         "number_of_shards": 1,
+        #         "number_of_replicas": 0
+        #     },
+        #     "mappings": {
+        #         "properties": {
+        #             "title": {
+        #                 "type": "text",
+        #                 # "analyzer": "korean_analyzer"
+        #                 "analyzer": "nori"
+        #                 # "analyzer": "youtube_analyzer"
+        #             },
+        #             "content": {
+        #                 "type": "text",
+        #                 # "analyzer": "korean_analyzer"
+        #                 "analyzer": "nori"
+        #                 # "analyzer": "youtube_analyzer"
+        #             },
+        #             "page_number": {
+        #                 "type": "integer"
+        #             },
+        #             "category": {
+        #                 "type": "keyword"
+        #             },
+        #             "file_path": {
+        #                 "type": "keyword"
+        #             },
+        #             "created_at": {
+        #                 "type": "date"
+        #             }
+        #         }
+        #     }
+        # }
+
         return {
             "settings": {
                 "analysis": {
-                    # "analyzer": {
-                    #     "nori",
-                    # }
-                        
                     "analyzer": {
-                        "youtube_analyzer": {
+                        "korean_analyzer": {
                             "tokenizer": "standard",
                             "filter": ["lowercase", "stop"]
                         }
@@ -171,15 +214,13 @@ class ElasticsearchConfig:
                 "properties": {
                     "title": {
                         "type": "text",
-                        # "analyzer": "korean_analyzer"
-                        "analyzer": "nori"
-                        # "analyzer": "youtube_analyzer"
+                        "analyzer": "korean_analyzer"
+                        # "analyzer": "nori"
                     },
                     "content": {
                         "type": "text",
-                        # "analyzer": "korean_analyzer"
-                        "analyzer": "nori"
-                        # "analyzer": "youtube_analyzer"
+                        "analyzer": "korean_analyzer"
+                        # "analyzer": "nori"
                     },
                     "page_number": {
                         "type": "integer"

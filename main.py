@@ -122,6 +122,10 @@ class LegalDocumentSearchApp:
                 content_preview = doc.content[:200] + "..." if len(doc.content) > 200 else doc.content
                 print(f"내용: {content_preview}")
             
+            # Explanation 정보 출력
+            if result.explanation:
+                self._print_explanation(result.explanation)
+            
             print("-" * 80)
     
     def _print_statistics(self, stats: dict):
@@ -139,6 +143,164 @@ class LegalDocumentSearchApp:
         es_status = stats.get('elasticsearch_status', {})
         print(f"\nElasticsearch 상태: {es_status.get('status', 'unknown')}")
         print("="*50)
+    
+    def _print_explanation(self, explanation: dict):
+        """검색 점수 계산 설명 출력"""
+        print("📊 점수 계산 설명:")
+        
+        if not explanation:
+            print("  설명 정보가 없습니다.")
+            return
+        
+        try:
+            # 재귀적으로 explanation 구조를 파싱
+            self._print_explanation_recursive(explanation, indent=1)
+        except Exception as e:
+            print(f"  설명 정보 처리 중 오류: {str(e)}")
+        
+        print()
+    
+    def _print_explanation_recursive(self, explanation: dict, indent: int = 0):
+        """재귀적으로 explanation 구조를 파싱하여 출력"""
+        if not isinstance(explanation, dict):
+            return
+        
+        # 깊이 제한 (너무 깊게 들어가지 않도록)
+        if indent > 4:
+            return
+        
+        indent_str = "  " * indent
+        
+        # 점수와 설명 출력
+        value = explanation.get('value', 'N/A')
+        description = explanation.get('description', '')
+        
+        # 설명을 더 이해하기 쉽게 번역
+        korean_desc = self._translate_explanation_description(description)
+        
+        # 최상위 레벨에서만 점수 출력
+        if indent == 1:
+            print(f"{indent_str}- {korean_desc}: {value:.4f}")
+        else:
+            # 하위 레벨에서는 더 간단히 표시
+            if korean_desc and korean_desc != "점수 계산":
+                print(f"{indent_str}• {korean_desc}: {value:.4f}")
+        
+        # 세부 설명이 있는 경우 재귀적으로 처리
+        if 'details' in explanation and explanation['details']:
+            details = explanation['details']
+            if isinstance(details, list):
+                # 점수가 높은 순으로 정렬하여 상위 4개만 출력
+                sorted_details = sorted(details, 
+                                      key=lambda x: x.get('value', 0) if isinstance(x, dict) else 0, 
+                                      reverse=True)[:4]
+                
+                # 만약 "sum of" 타입이면 더 자세히 설명
+                if "sum of" in description.lower():
+                    for detail in sorted_details:
+                        if isinstance(detail, dict):
+                            self._print_explanation_recursive(detail, indent + 1)
+                # "max of" 타입이면 각 그룹을 구분해서 표시
+                elif "max of" in description.lower():
+                    for i, detail in enumerate(sorted_details):
+                        if isinstance(detail, dict):
+                            detail_desc = detail.get('description', '')
+                            if 'sum of' in detail_desc.lower():
+                                # 필드별로 구분해서 표시 - 더 정확한 필드 구분
+                                field_name = self._determine_field_name(detail)
+                                print(f"{indent_str}  [{field_name}]")
+                                self._print_explanation_recursive(detail, indent + 2)
+                            else:
+                                self._print_explanation_recursive(detail, indent + 1)
+                else:
+                    # 기타 경우
+                    for detail in sorted_details:
+                        if isinstance(detail, dict):
+                            self._print_explanation_recursive(detail, indent + 1)
+            elif isinstance(details, dict):
+                self._print_explanation_recursive(details, indent + 1)
+    
+    def _translate_explanation_description(self, description: str) -> str:
+        """Elasticsearch explanation 설명을 한국어로 번역"""
+        if not description:
+            return ""
+        
+        # 콜론 중복 제거
+        cleaned_desc = description.rstrip(':')
+        
+        # 복잡한 패턴 매칭과 번역
+        import re
+        
+        # weight(...) 패턴 처리
+        weight_pattern = r'weight\(([^)]+)\)'
+        weight_match = re.search(weight_pattern, cleaned_desc)
+        if weight_match:
+            field_info = weight_match.group(1)
+            if 'title:' in field_info:
+                return f"제목 필드 가중치 ('{field_info.split('title:')[1].split()[0]}')"
+            elif 'content:' in field_info:
+                search_term = field_info.split('content:')[1].split()[0]
+                return f"내용 필드 가중치 ('{search_term}')"
+        
+        # score(...) 패턴 처리
+        if 'score(' in cleaned_desc and 'freq=' in cleaned_desc:
+            freq_match = re.search(r'freq=(\d+\.?\d*)', cleaned_desc)
+            if freq_match:
+                freq = freq_match.group(1)
+                return f"점수 계산 (빈도: {freq})"
+        
+        # 간단한 용어 번역
+        simple_translations = {
+            "sum of": "필드 점수 합계",
+            "max of": "최고 점수 선택", 
+            "min of": "최소값",
+            "product of": "곱셈",
+            "fieldWeight": "필드 가중치",
+            "tf": "단어 빈도",
+            "idf": "역문서 빈도",
+            "norm": "정규화",
+            "boost": "부스트",
+            "match": "매칭"
+        }
+        
+        result = cleaned_desc
+        for en, ko in simple_translations.items():
+            if en in result:
+                result = ko
+                break
+        
+        # 너무 기술적인 설명은 간단히 변환
+        if any(tech in cleaned_desc.lower() for tech in ['perfieldsimilarity', 'result of', 'computed as']):
+            if 'title' in cleaned_desc:
+                return "제목 매칭 점수"
+            elif 'content' in cleaned_desc:
+                return "내용 매칭 점수"
+            else:
+                return "매칭 점수"
+        
+        return result if result != cleaned_desc else "점수 계산"
+    
+    def _determine_field_name(self, detail: dict) -> str:
+        """detail 정보를 분석해서 어떤 필드인지 결정"""
+        if not isinstance(detail, dict):
+            return "알 수 없는 필드"
+        
+        # details 안에 있는 모든 weight 정보를 확인
+        details = detail.get('details', [])
+        if not details:
+            return "알 수 없는 필드"
+        
+        # 첫 번째 detail의 설명을 확인
+        first_detail = details[0] if details else {}
+        first_desc = first_detail.get('description', '') if isinstance(first_detail, dict) else ''
+        
+        # weight 패턴에서 필드명 추출
+        if 'title:' in first_desc.lower():
+            return "제목 필드"
+        elif 'content:' in first_desc.lower():
+            return "내용 필드"
+        else:
+            return "알 수 없는 필드"
     
     def interactive_search(self):
         """대화형 검색 모드"""

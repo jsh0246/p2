@@ -171,7 +171,8 @@ class ElasticsearchClient:
                 "size": size,
                 "sort": [
                     {"_score": {"order": "desc"}}
-                ]
+                ],
+                "explain": True
             }
             
             # 카테고리 필터 추가
@@ -194,7 +195,8 @@ class ElasticsearchClient:
                 search_result = SearchResult(
                     document=document,
                     score=hit['_score'],
-                    highlights=hit.get('highlight', {})
+                    highlights=hit.get('highlight', {}),
+                    explanation=hit.get('_explanation', {})
                 )
                 
                 search_results.append(search_result)
