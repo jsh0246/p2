@@ -147,7 +147,6 @@ class LegalDocumentSearchApp:
         print("사용 가능한 명령어:")
         print("  - 검색어 입력: 단어나 구문을 입력하여 검색")
         print("  - category:<카테고리명>: 특정 카테고리에서 검색")
-        print("  - analyze:<검색어>: 검색어 분석 (예: analyze:국가 등의 책무)")
         print("  - stats: 시스템 통계 보기")
         print("  - help: 도움말 보기")
         print("  - quit: 종료")
@@ -171,13 +170,6 @@ class LegalDocumentSearchApp:
                     stats = self.search_service.get_statistics()
                     self._print_statistics(stats)
                 
-                elif user_input.startswith('analyze:'):
-                    query = user_input[8:].strip()
-                    if query:
-                        self._analyze_search_terms(query)
-                    else:
-                        print("분석할 검색어를 입력해주세요. 예: analyze:국가 등의 책무")
-                
                 elif user_input.startswith('category:'):
                     category = user_input[9:].strip()
                     if category:
@@ -199,44 +191,15 @@ class LegalDocumentSearchApp:
                 logger.error(f"명령어 처리 중 오류 발생: {str(e)}")
                 print("오류가 발생했습니다. 다시 시도해주세요.")
     
-    def _analyze_search_terms(self, query: str):
-        """검색어 분석 결과 출력"""
-        try:
-            analysis = self.search_service.analyze_search_terms(query)
-            
-            print("\n" + "="*60)
-            print("🔍 검색어 분석 결과")
-            print("="*60)
-            print(f"원본 텍스트: {analysis['original_text']}")
-            print(f"분석된 토큰: {analysis['analyzed_tokens']}")
-            print(f"토큰 수: {analysis['token_count']}")
-            
-            if 'error' in analysis:
-                print(f"⚠️ 오류: {analysis['error']}")
-            else:
-                print("\n💡 분석 설명:")
-                print("- Nori 형태소 분석기가 한국어를 의미 있는 단위로 분해했습니다")
-                print("- 조사, 어미 등 불필요한 품사는 제거되었습니다")
-                print("- 동의어 확장이 적용됩니다 (예: 국가→정부, 책무→의무)")
-            
-            print("="*60)
-            
-        except Exception as e:
-            logger.error(f"검색어 분석 중 오류 발생: {str(e)}")
-            print("검색어 분석 중 오류가 발생했습니다.")
-    
     def _print_help(self):
         """도움말 출력"""
         print("\n📖 사용법:")
         print("1. 키워드 검색: '스토킹', '성폭력', '도박' 등")
         print("2. 구문 검색: '스토킹 처벌법', '성폭력 예방' 등")
         print("3. 카테고리 검색: 'category:스토킹', 'category:성폭력', 'category:사행산업'")
-        print("4. 검색어 분석: 'analyze:국가 등의 책무'")
-        print("5. 시스템 상태: 'stats'")
-        print("6. 종료: 'quit'")
-        print("\n💡 팁:")
-        print("- 여러 단어를 입력하면 더 정확한 검색 결과를 얻을 수 있습니다")
-        print("- 'analyze:' 명령으로 검색어가 어떻게 분석되는지 확인할 수 있습니다")
+        print("4. 시스템 상태: 'stats'")
+        print("5. 종료: 'quit'")
+        print("\n💡 팁: 여러 단어를 입력하면 더 정확한 검색 결과를 얻을 수 있습니다.")
 
 def main():
     """메인 함수"""

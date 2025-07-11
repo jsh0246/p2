@@ -1,5 +1,5 @@
 """
-검색 서비스 - Elasticsearch Text Analysis 개선 버전
+검색 서비스
 """
 
 import logging
@@ -17,21 +17,20 @@ from utils.text_utils import TextProcessor
 logger = logging.getLogger(__name__)
 
 class SearchService:
-    """검색 서비스를 관리하는 메인 클래스 - Nori Analyzer 적용"""
+    """검색 서비스를 관리하는 메인 클래스"""
     
     def __init__(self):
         self.pdf_processor = PDFProcessor()
         self.es_client = ElasticsearchClient()
         self.text_processor = TextProcessor()
-        self.index_name = "legal_documents_v2"  # 새로운 인덱스명
         
     def initialize_index(self, pdf_path: str, recreate: bool = False) -> bool:
-        """PDF 파일을 인덱싱하여 검색 준비 - Nori 분석기 적용"""
+        """PDF 파일을 인덱싱하여 검색 준비"""
         try:
-            logger.info(f"인덱스 초기화 시작 (Nori 분석기 적용): {pdf_path}")
+            logger.info(f"인덱스 초기화 시작: {pdf_path}")
             
-            # Nori 분석기가 적용된 인덱스 생성
-            if not self._create_index_with_nori(recreate):
+            # 인덱스 생성
+            if not self.es_client.create_index(delete_existing=recreate):
                 logger.error("인덱스 생성 실패")
                 return False
             
@@ -61,342 +60,68 @@ class SearchService:
             logger.error(f"인덱스 초기화 오류: {str(e)}")
             return False
     
-    def _create_index_with_nori(self, recreate: bool = False) -> bool:
-        """Nori 분석기가 적용된 인덱스 생성"""
+    def search(self, query: str, size: int = 10, category: Optional[str] = None) -> List[SearchResult]:
+        """키워드로 문서 검색"""
         try:
-            if not self.es_client.client:
-                logger.error("Elasticsearch 클라이언트가 연결되지 않았습니다.")
-                return False
+            logger.info(f"검색 시작: '{query}'")
             
-            # 기존 인덱스 삭제 (재생성 시)
-            if recreate and self.es_client.client.indices.exists(index=self.index_name):
-                self.es_client.client.indices.delete(index=self.index_name)
-                logger.info("기존 인덱스 삭제 완료")
+            # 쿼리 전처리
+            processed_query = self.text_processor.clean_text(query)
             
-            # 인덱스가 이미 존재하면 스킵
-            if self.es_client.client.indices.exists(index=self.index_name):
-                logger.info("인덱스가 이미 존재합니다.")
-                return True
-            
-            # Nori 분석기 설정
-            index_config = {
-                "settings": {
-                    "number_of_shards": 1,
-                    "number_of_replicas": 0,
-                    "analysis": {
-                        "tokenizer": {
-                            "nori_custom": {
-                                "type": "nori_tokenizer",
-                                "decompound_mode": "mixed",  # 복합어 분해 모드
-                                "user_dictionary_rules": [
-                                    "개인정보보호",
-                                    "정보주체",
-                                    "스토킹처벌법",
-                                    "성폭력처벌법",
-                                    "사행산업통합감독위원회",
-                                    "디지털성범죄",
-                                    "온라인성착취",
-                                    "데이터보호",
-                                    "프라이버시",
-                                    "사이버범죄"
-                                ]
-                            }
-                        },
-                        "filter": {
-                            "nori_pos_filter": {
-                                "type": "nori_part_of_speech",
-                                "stoptags": [
-                                    "E",    # 어미
-                                    "IC",   # 감탄사
-                                    "J",    # 조사
-                                    "MAG",  # 일반 부사
-                                    "MM",   # 관형사
-                                    "SP",   # 구두점
-                                    "SSC",  # 닫는 괄호
-                                    "SSO",  # 여는 괄호
-                                    "SC",   # 구분자
-                                    "SE",   # 줄임표
-                                    "XPN",  # 접두사
-                                    "XSN",  # 명사파생 접미사
-                                    "XSV",  # 동사파생 접미사
-                                    "UNA",  # 알 수 없음
-                                    "NA",   # 분석불능범주
-                                    "VSV"   # 반복 동사
-                                ]
-                            },
-                            "korean_synonym": {
-                                "type": "synonym",
-                                "synonyms": [
-                                    "국가,정부,공공기관",
-                                    "개인정보,사생활,프라이버시",
-                                    "책무,의무,책임,임무",
-                                    "보호,보장,안전",
-                                    "스토킹,스토커,따라다니기",
-                                    "성폭력,성범죄,성추행",
-                                    "도박,사행행위,도박행위",
-                                    "처벌,제재,벌칙,형벌"
-                                ]
-                            }
-                        },
-                        "analyzer": {
-                            "korean_legal": {
-                                "type": "custom",
-                                "tokenizer": "nori_custom",
-                                "filter": [
-                                    "nori_pos_filter",
-                                    "korean_synonym",
-                                    "lowercase"
-                                ]
-                            }
-                        }
-                    }
-                },
-                "mappings": {
-                    "properties": {
-                        "title": {
-                            "type": "text",
-                            "analyzer": "korean_legal",
-                            "search_analyzer": "korean_legal",
-                            "fields": {
-                                "keyword": {
-                                    "type": "keyword"
-                                }
-                            }
-                        },
-                        "content": {
-                            "type": "text",
-                            "analyzer": "korean_legal",
-                            "search_analyzer": "korean_legal"
-                        },
-                        "category": {
-                            "type": "keyword"
-                        },
-                        "page_number": {
-                            "type": "integer"
-                        },
-                        "file_path": {
-                            "type": "keyword"
-                        },
-                        "law_name": {
-                            "type": "keyword"
-                        },
-                        "article_number": {
-                            "type": "keyword"
-                        }
-                    }
-                }
-            }
-            
-            # 인덱스 생성
-            response = self.es_client.client.indices.create(
-                index=self.index_name,
-                body=index_config
-            )
-            
-            logger.info(f"Nori 분석기가 적용된 인덱스 생성 완료: {self.index_name}")
-            return True
-            
-        except Exception as e:
-            logger.error(f"Nori 인덱스 생성 오류: {str(e)}")
-            return False
-    
-    def analyze_search_terms(self, text: str) -> Dict:
-        """텍스트가 어떻게 분석되는지 확인하는 도구"""
-        try:
-            if not self.es_client.client:
-                logger.error("Elasticsearch 클라이언트가 연결되지 않았습니다.")
-                return {
-                    "original_text": text,
-                    "analyzed_tokens": [],
-                    "token_count": 0,
-                    "error": "클라이언트 연결 없음"
-                }
-            
-            analyze_query = {
-                "analyzer": "korean_legal",
-                "text": text
-            }
-            
-            response = self.es_client.client.indices.analyze(
-                index=self.index_name,
-                body=analyze_query
-            )
-            
-            tokens = [token['token'] for token in response['tokens']]
-            
-            return {
-                "original_text": text,
-                "analyzed_tokens": tokens,
-                "token_count": len(tokens)
-            }
-            
-        except Exception as e:
-            logger.error(f"검색어 분석 오류: {str(e)}")
-            return {
-                "original_text": text,
-                "analyzed_tokens": [],
-                "token_count": 0,
-                "error": str(e)
-            }
-    
-    def search_with_advanced_analysis(self, query: str, size: int = 10, category: Optional[str] = None) -> List[SearchResult]:
-        """향상된 텍스트 분석을 사용한 검색"""
-        try:
-            logger.info(f"향상된 검색 시작: '{query}'")
-            
-            # 기본 쿼리 구성
-            search_query = {
-                "query": {
-                    "bool": {
-                        "should": [
-                            # 정확한 구문 매칭 (높은 점수)
-                            {
-                                "match_phrase": {
-                                    "content": {
-                                        "query": query,
-                                        "boost": 3.0
-                                    }
-                                }
-                            },
-                            # 제목에서 매칭 (높은 점수)
-                            {
-                                "match": {
-                                    "title": {
-                                        "query": query,
-                                        "boost": 2.5,
-                                        "operator": "and"
-                                    }
-                                }
-                            },
-                            # 내용에서 매칭 (기본 점수)
-                            {
-                                "match": {
-                                    "content": {
-                                        "query": query,
-                                        "boost": 1.0
-                                    }
-                                }
-                            },
-                            # 퍼지 검색 (오타 허용)
-                            {
-                                "fuzzy": {
-                                    "content": {
-                                        "value": query,
-                                        "fuzziness": "AUTO",
-                                        "boost": 0.5
-                                    }
-                                }
-                            }
-                        ],
-                        "minimum_should_match": 1
-                    }
-                },
-                "highlight": {
-                    "fields": {
-                        "title": {
-                            "pre_tags": ["<mark>"],
-                            "post_tags": ["</mark>"],
-                            "fragment_size": 100,
-                            "number_of_fragments": 1
-                        },
-                        "content": {
-                            "pre_tags": ["<mark>"],
-                            "post_tags": ["</mark>"],
-                            "fragment_size": 150,
-                            "number_of_fragments": 3
-                        }
-                    }
-                },
-                "size": size
-            }
-            
-            # 카테고리 필터 추가
-            if category:
-                search_query["query"]["bool"]["filter"] = [
-                    {"term": {"category": category}}
-                ]
-            
-            # 검색 실행
-            if not self.es_client.client:
-                logger.error("Elasticsearch 클라이언트가 연결되지 않았습니다.")
+            if not processed_query:
+                logger.warning("검색어가 비어있습니다.")
                 return []
             
-            response = self.es_client.client.search(
-                index=self.index_name,
-                body=search_query
+            # Elasticsearch 검색 실행
+            search_results = self.es_client.search(
+                query=processed_query,
+                size=size,
+                category=category
             )
             
-            # 결과 처리
-            results = []
-            for hit in response['hits']['hits']:
-                document = Document(
-                    title=hit['_source'].get('title', ''),
-                    content=hit['_source'].get('content', ''),
-                    page_number=hit['_source'].get('page_number', 0),
-                    category=hit['_source'].get('category', ''),
-                    file_path=hit['_source'].get('file_path', '')
-                )
-                
-                result = SearchResult(
-                    document=document,
-                    score=hit['_score'],
-                    highlights=hit.get('highlight', {})
-                )
-                results.append(result)
+            # 검색 결과 후처리
+            processed_results = []
+            for result in search_results:
+                # 하이라이트 처리
+                if result.highlights:
+                    # 기존 하이라이트 사용
+                    processed_results.append(result)
+                else:
+                    # 수동 하이라이트 생성
+                    keywords = self.text_processor.extract_keywords(processed_query)
+                    highlighted_content = self.text_processor.highlight_text(
+                        result.document.content,
+                        keywords,
+                        max_length=300
+                    )
+                    
+                    # 하이라이트 정보 추가
+                    result.highlights = {
+                        "content": [highlighted_content]
+                    }
+                    processed_results.append(result)
             
-            logger.info(f"향상된 검색 완료: {len(results)}개 결과")
-            return results
+            logger.info(f"검색 완료: {len(processed_results)}개 결과")
+            return processed_results
             
         except Exception as e:
-            logger.error(f"향상된 검색 오류: {str(e)}")
+            logger.error(f"검색 오류: {str(e)}")
             return []
-    
-    def search(self, query: str, size: int = 10, category: Optional[str] = None) -> List[SearchResult]:
-        """기본 검색 메서드 - 향상된 분석 사용"""
-        return self.search_with_advanced_analysis(query, size, category)
     
     def search_by_category(self, category: str, size: int = 10) -> List[SearchResult]:
         """카테고리별 문서 검색"""
         try:
             logger.info(f"카테고리 검색: {category}")
             
-            search_query = {
-                "query": {
-                    "term": {
-                        "category": category
-                    }
-                },
-                "size": size
-            }
-            
-            if not self.es_client.client:
-                logger.error("Elasticsearch 클라이언트가 연결되지 않았습니다.")
-                return []
-            
-            response = self.es_client.client.search(
-                index=self.index_name,
-                body=search_query
+            # 카테고리 검색은 match_all 쿼리 사용
+            search_results = self.es_client.search(
+                query="*",
+                size=size,
+                category=category
             )
             
-            results = []
-            for hit in response['hits']['hits']:
-                document = Document(
-                    title=hit['_source'].get('title', ''),
-                    content=hit['_source'].get('content', ''),
-                    page_number=hit['_source'].get('page_number', 0),
-                    category=hit['_source'].get('category', ''),
-                    file_path=hit['_source'].get('file_path', '')
-                )
-                
-                result = SearchResult(
-                    document=document,
-                    score=hit['_score'],
-                    highlights={}
-                )
-                results.append(result)
-            
-            logger.info(f"카테고리 검색 완료: {len(results)}개 결과")
-            return results
+            logger.info(f"카테고리 검색 완료: {len(search_results)}개 결과")
+            return search_results
             
         except Exception as e:
             logger.error(f"카테고리 검색 오류: {str(e)}")
@@ -422,7 +147,7 @@ class SearchService:
             }
             
             response = self.es_client.client.search(
-                index=self.index_name,
+                index=self.es_client.index_name,
                 body=search_body
             )
             
@@ -440,11 +165,9 @@ class SearchService:
         """검색 인덱스 통계 정보"""
         try:
             stats = {
-                "total_documents": self._get_document_count(),
+                "total_documents": self.es_client.get_document_count(),
                 "elasticsearch_status": self.es_client.health_check(),
-                "categories": self._get_category_stats(),
-                "index_name": self.index_name,
-                "analyzer_info": "korean_legal (Nori tokenizer)"
+                "categories": self._get_category_stats()
             }
             
             return stats
@@ -452,19 +175,6 @@ class SearchService:
         except Exception as e:
             logger.error(f"통계 조회 오류: {str(e)}")
             return {"error": str(e)}
-    
-    def _get_document_count(self) -> int:
-        """문서 수 조회"""
-        try:
-            if not self.es_client.client:
-                logger.error("Elasticsearch 클라이언트가 연결되지 않았습니다.")
-                return 0
-            
-            response = self.es_client.client.count(index=self.index_name)
-            return response['count']
-        except Exception as e:
-            logger.error(f"문서 수 조회 오류: {str(e)}")
-            return 0
     
     def _get_category_stats(self) -> Dict[str, int]:
         """카테고리별 문서 수 통계"""
@@ -486,7 +196,7 @@ class SearchService:
             }
             
             response = self.es_client.client.search(
-                index=self.index_name,
+                index=self.es_client.index_name,
                 body=search_body
             )
             
@@ -555,14 +265,7 @@ class SearchService:
     def reset_index(self) -> bool:
         """인덱스 초기화"""
         try:
-            if not self.es_client.client:
-                logger.error("Elasticsearch 클라이언트가 연결되지 않았습니다.")
-                return False
-            
-            if self.es_client.client.indices.exists(index=self.index_name):
-                self.es_client.client.indices.delete(index=self.index_name)
-                logger.info(f"인덱스 삭제 완료: {self.index_name}")
-            return True
+            return self.es_client.delete_index()
         except Exception as e:
             logger.error(f"인덱스 초기화 오류: {str(e)}")
             return False 

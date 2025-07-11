@@ -12,7 +12,7 @@ class ElasticsearchConfig:
         self.host = os.getenv('ELASTICSEARCH_HOST', 'localhost')
         self.port = int(os.getenv('ELASTICSEARCH_PORT', '9200'))
         self.username = os.getenv('ELASTICSEARCH_USERNAME', 'elastic')
-        self.password = os.getenv('ELASTICSEARCH_PASSWORD', 'KJUO1uS9')
+        self.password = os.getenv('ELASTICSEARCH_PASSWORD', 'slzR9p6H')
         self.index_name = os.getenv('ELASTICSEARCH_INDEX', 'legal_documents')
         self.use_ssl = os.getenv('ELASTICSEARCH_USE_SSL', 'false').lower() == 'true'
         self.verify_certs = os.getenv('ELASTICSEARCH_VERIFY_CERTS', 'false').lower() == 'true'
@@ -29,63 +29,81 @@ class ElasticsearchConfig:
         
     def get_index_settings(self) -> Dict[str, Any]:
         """인덱스 설정을 반환합니다."""
-        return {
-            "settings": {
-                "analysis": {
-                    "tokenizer": {
-                        "nori_tokenizer_custom": {
-                            "type": "nori_tokenizer",
-                            "decompound_mode": "mixed",
-                            "user_dictionary": "analysis-nori-user-dictionary.txt"
-                        }
-                    },
-                    "filter": {
-                        "nori_readingform": {
-                            "type": "nori_reading_form"
-                        },
-                        "nori_part_of_speech": {
-                            "type": "nori_part_of_speech",
-                            "stoptags": [
-                                "E",    # 어미
-                                "J",    # 조사
-                                "MAG",  # 일반 부사
-                                "XR"    # 어근 외 확장 어근
-                            ]
-                        }
-                    },
-                    "analyzer": {
-                        "korean_nori_analyzer": {
-                            "type": "custom",
-                            "tokenizer": "nori_tokenizer_custom",
-                            "filter": [
-                                "lowercase",
-                                "nori_readingform",
-                                "nori_part_of_speech"
-                            ]
-                        }
-                    }
-                }
-            },
-            "mappings": {
-                "properties": {
-                    "title": {
-                        "type": "text",
-                        "analyzer": "korean_nori_analyzer"
-                    },
-                    "content": {
-                        "type": "text",
-                        "analyzer": "korean_nori_analyzer"
-                    },
-                    "tags": {
-                        "type": "keyword"
-                    },
-                    "published_date": {
-                        "type": "date",
-                        "format": "yyyy-MM-dd"
-                    }
-                }
-            }
-        }
+        # return {
+        #     "settings": {
+        #         "analysis": {
+        #             "analyzer": {
+        #                 "korean_analyzer": {
+        #                     "tokenizer": "nori_tokenizer_custom",
+        #                     "filter": ["lowercase", "nori_part_of_speech"]
+        #                 }
+        #             }
+        #         }
+        #     },
+        #     "mappings": {
+        #         "properties": {
+        #             "title": {"type": "text", "analyzer": "korean_analyzer"},
+        #             "content": {"type": "text", "analyzer": "korean_analyzer"}
+        #         }
+        #     }
+        # }
+        # return {
+        #     "settings": {
+        #         "analysis": {
+        #             "tokenizer": {
+        #                 "nori_tokenizer_custom": {
+        #                     "type": "nori_tokenizer",
+        #                     "decompound_mode": "mixed",
+        #                     "user_dictionary": "analysis-nori-user-dictionary.txt"
+        #                 }
+        #             },
+        #             "filter": {
+        #                 "nori_readingform": {
+        #                     "type": "nori_reading_form"
+        #                 },
+        #                 "nori_part_of_speech": {
+        #                     "type": "nori_part_of_speech",
+        #                     "stoptags": [
+        #                         "E",    # 어미
+        #                         "J",    # 조사
+        #                         "MAG",  # 일반 부사
+        #                         "XR"    # 어근 외 확장 어근
+        #                     ]
+        #                 }
+        #             },
+        #             "analyzer": {
+        #                 "korean_nori_analyzer": {
+        #                     "type": "custom",
+        #                     "tokenizer": "nori_tokenizer_custom",
+        #                     "filter": [
+        #                         "lowercase",
+        #                         "nori_readingform",
+        #                         "nori_part_of_speech"
+        #                     ]
+        #                 }
+        #             }
+        #         }
+        #     },
+        #     "mappings": {
+        #         "properties": {
+        #             "title": {
+        #                 "type": "text",
+        #                 "analyzer": "korean_nori_analyzer"
+        #             },
+        #             "content": {
+        #                 "type": "text",
+        #                 "analyzer": "korean_nori_analyzer"
+        #             },
+        #             "tags": {
+        #                 "type": "keyword"
+        #             },
+        #             "published_date": {
+        #                 "type": "date",
+        #                 "format": "yyyy-MM-dd"
+        #             }
+        #         }
+        #     }
+        # }
         # return {
         #     "settings": {
         #         "analysis": {
@@ -132,46 +150,52 @@ class ElasticsearchConfig:
         #     }
         # }
 
-        # return {
-        #     "settings": {
-        #         "analysis": {
-        #             "analyzer": {
-        #                 "korean_analyzer": {
-        #                     "tokenizer": "standard",
-        #                     "filter": ["lowercase", "stop"]
-        #                 }
-        #             }
-        #         },
-        #         "number_of_shards": 1,
-        #         "number_of_replicas": 0
-        #     },
-        #     "mappings": {
-        #         "properties": {
-        #             "title": {
-        #                 "type": "text",
-        #                 "analyzer": "korean_analyzer"
-        #                 # "analyzer": "nori"
-        #             },
-        #             "content": {
-        #                 "type": "text",
-        #                 "analyzer": "korean_analyzer"
-        #                 # "analyzer": "nori"
-        #             },
-        #             "page_number": {
-        #                 "type": "integer"
-        #             },
-        #             "category": {
-        #                 "type": "keyword"
-        #             },
-        #             "file_path": {
-        #                 "type": "keyword"
-        #             },
-        #             "created_at": {
-        #                 "type": "date"
-        #             }
-        #         }
-        #     }
-        # }
+        return {
+            "settings": {
+                "analysis": {
+                    # "analyzer": {
+                    #     "nori",
+                    # }
+                        
+                    "analyzer": {
+                        "youtube_analyzer": {
+                            "tokenizer": "standard",
+                            "filter": ["lowercase", "stop"]
+                        }
+                    }
+                },
+                "number_of_shards": 1,
+                "number_of_replicas": 0
+            },
+            "mappings": {
+                "properties": {
+                    "title": {
+                        "type": "text",
+                        # "analyzer": "korean_analyzer"
+                        "analyzer": "nori"
+                        # "analyzer": "youtube_analyzer"
+                    },
+                    "content": {
+                        "type": "text",
+                        # "analyzer": "korean_analyzer"
+                        "analyzer": "nori"
+                        # "analyzer": "youtube_analyzer"
+                    },
+                    "page_number": {
+                        "type": "integer"
+                    },
+                    "category": {
+                        "type": "keyword"
+                    },
+                    "file_path": {
+                        "type": "keyword"
+                    },
+                    "created_at": {
+                        "type": "date"
+                    }
+                }
+            }
+        }
 
 # 싱글톤 설정 인스턴스
 config = ElasticsearchConfig() 
